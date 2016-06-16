@@ -12,7 +12,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-// FetchedData encapsulates a newly found data from a URL, or an error in accessing a URL
+// FetchedData encapsulates a newly found data from a URL, or an error in accessing a URL.
 type FetchedData struct {
 	URL  string
 	Time int64
