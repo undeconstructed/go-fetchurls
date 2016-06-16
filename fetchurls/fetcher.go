@@ -12,23 +12,27 @@ import (
 	"golang.org/x/net/context"
 )
 
-type fetchedData struct {
-	url  string
-	time int64
-	data []byte
-	err  error
+// FetchedData encapsulates a newly found data from a URL, or an error in accessing a URL
+type FetchedData struct {
+	URL  string
+	Time int64
+	Data []byte
+	Err  error
 }
 
+// fetchState is internal state for a URL
 type fetchState struct {
 	time int64
 	etag string
 }
 
+// toFetch is the instruction format for workers
 type toFetch struct {
 	url  string
 	etag string
 }
 
+// fromFetch is the response format from workers
 type fromFetch struct {
 	url  string
 	etag string
@@ -37,22 +41,24 @@ type fromFetch struct {
 	err  error
 }
 
-// fetcher fetches URLs about once a minute and sends you the data if it has changed
-type fetcher struct {
-	out  chan fetchedData // return new data
+// Fetcher fetches URLs about once a minute and sends you the data if it has changed
+type Fetcher struct {
+	out  chan FetchedData // return new data
 	in   chan []string    // accept new url sets
 	work chan toFetch     // push work to workers
 }
 
-func newFetcher(out chan fetchedData) (*fetcher, error) {
-	return &fetcher{
+// New creates a new Fetcher
+func New(out chan FetchedData) (*Fetcher, error) {
+	return &Fetcher{
 		out:  out,
 		in:   make(chan []string, 1),
 		work: make(chan toFetch),
 	}, nil
 }
 
-func (f *fetcher) start(ctx context.Context) {
+// Start begins the fetching process and must only be called once
+func (f *Fetcher) Start(ctx context.Context) {
 
 	resultCh := make(chan fromFetch)
 
@@ -104,13 +110,13 @@ func (f *fetcher) start(ctx context.Context) {
 				if state, ok := data[result.url]; ok {
 					if result.err != nil {
 						state.time = time.Now().Unix()
-						f.out <- fetchedData{url: result.url, time: state.time, err: result.err}
+						f.out <- FetchedData{URL: result.url, Time: state.time, Err: result.err}
 					} else if state.etag == result.etag {
 						state.time = result.time
 					} else {
 						state.time = result.time
 						state.etag = result.etag
-						f.out <- fetchedData{url: result.url, time: state.time, data: result.data}
+						f.out <- FetchedData{URL: result.url, Time: state.time, Data: result.data}
 					}
 				} else {
 					// this is no longer an interesting URL
@@ -126,7 +132,7 @@ func (f *fetcher) start(ctx context.Context) {
 	}()
 }
 
-func (f *fetcher) tryDispatch(data map[string]*fetchState) {
+func (f *Fetcher) tryDispatch(data map[string]*fetchState) {
 	for url, state := range data {
 		cutoff := time.Now().Unix() - 60
 		if state.time >= 0 && state.time <= cutoff {
@@ -143,7 +149,8 @@ func (f *fetcher) tryDispatch(data map[string]*fetchState) {
 	}
 }
 
-func (f *fetcher) setURLs(urls []string) {
+// SetURLs replaces the set of URLs the Fetcher is fetching
+func (f *Fetcher) SetURLs(urls []string) {
 	f.in <- urls
 }
 
