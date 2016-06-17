@@ -16,6 +16,7 @@ import (
 type FetchedData struct {
 	URL  string
 	Time int64
+	ETag string
 	Data []byte
 	Err  error
 }
@@ -116,7 +117,7 @@ func (f *Fetcher) Start(ctx context.Context) {
 					} else {
 						state.time = result.time
 						state.etag = result.etag
-						f.out <- FetchedData{URL: result.url, Time: state.time, Data: result.data}
+						f.out <- FetchedData{URL: result.url, Time: state.time, ETag: result.etag, Data: result.data}
 					}
 				} else {
 					// this is no longer an interesting URL
