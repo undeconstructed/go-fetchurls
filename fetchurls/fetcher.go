@@ -1,6 +1,7 @@
 package fetchurls
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -8,8 +9,6 @@ import (
 	"os"
 	"strconv"
 	"time"
-
-	"golang.org/x/net/context"
 )
 
 // FetchedData encapsulates a newly found data from a URL, or an error in accessing a URL.
@@ -44,17 +43,19 @@ type fromFetch struct {
 
 // Fetcher fetches URLs about once a minute and sends you the data if it has changed
 type Fetcher struct {
-	out  chan FetchedData // return new data
-	in   chan []string    // accept new url sets
-	work chan toFetch     // push work to workers
+	client *http.Client
+	out    chan FetchedData // return new data
+	in     chan []string    // accept new url sets
+	work   chan toFetch     // push work to workers
 }
 
 // New creates a new Fetcher
 func New(out chan FetchedData) (*Fetcher, error) {
 	return &Fetcher{
-		out:  out,
-		in:   make(chan []string, 1),
-		work: make(chan toFetch),
+		client: &http.Client{Timeout: 5 * time.Second},
+		out:    out,
+		in:     make(chan []string, 1),
+		work:   make(chan toFetch),
 	}, nil
 }
 
@@ -68,7 +69,7 @@ func (f *Fetcher) Start(ctx context.Context) {
 			for {
 				select {
 				case work := <-f.work:
-					bytes, etag, err := doFetch(work.url, work.etag)
+					bytes, etag, err := doFetch(f.client, work.url, work.etag)
 					if err != nil {
 						resultCh <- fromFetch{url: work.url, err: err}
 						continue
@@ -155,7 +156,7 @@ func (f *Fetcher) SetURLs(urls []string) {
 	f.in <- urls
 }
 
-func doFetch(urlString, etag string) ([]byte, string, error) {
+func doFetch(client *http.Client, urlString, etag string) ([]byte, string, error) {
 	u, err := url.Parse(urlString)
 	if err != nil {
 		return nil, "", err
@@ -167,7 +168,7 @@ func doFetch(urlString, etag string) ([]byte, string, error) {
 			req.Header.Add("If-None-Match", etag)
 		}
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to fetch: %s", u)
 		}
