@@ -1,6 +1,7 @@
 package fetchurls
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -8,8 +9,6 @@ import (
 	"os"
 	"strconv"
 	"time"
-
-	"golang.org/x/net/context"
 )
 
 // FetchedData encapsulates a newly found data from a URL, or an error in accessing a URL.
